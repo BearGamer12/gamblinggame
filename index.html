@@ -182,7 +182,7 @@ async function submitScore(name, score) {
       getLeaderboard();
     }
 
-   async function syncScoresWithServer() {
+ async function syncScoresWithServer() {
   if (!playerName) return;
 
   const res = await fetch(API_URL);
@@ -191,23 +191,22 @@ async function submitScore(name, score) {
 
   if (existing) {
     playerId = existing.id;
-    // If server score is higher, update client scores
+    // If server highscore is higher, update client highscore
     if (existing.score > highscore) {
       highscore = existing.score;
-      score = existing.score;
-      updateUI("🔄 Synced with server (server had higher score).");
+      updateUI("🔄 Synced highscore from server.");
     }
-    // If client score is higher, update server
+    // If client highscore is higher, update server highscore
     else if (highscore > existing.score) {
       await fetch(`${API_URL}/${playerId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ score: highscore }),
       });
-      updateUI("🔄 Synced with server (client had higher score).");
+      updateUI("🔄 Synced highscore to server.");
     }
   } else {
-    // If player does not exist on server yet, create record
+    // Create new player on server if not found
     const res = await fetch(API_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -215,9 +214,10 @@ async function submitScore(name, score) {
     });
     const newPlayer = await res.json();
     playerId = newPlayer.id;
-    updateUI("🔄 Player created on server.");
+    updateUI("🔄 Created player on server.");
   }
 }
+
 
 async function getLeaderboard() {
   const res = await fetch(API_URL);
@@ -261,3 +261,4 @@ init();
   </script>
 </body>
 </html>
+
