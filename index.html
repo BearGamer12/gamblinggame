@@ -98,32 +98,41 @@
         playerId = null;
       }
     }
+async function submitScore(name, score) {
+  if (!name) return;
+  const res = await fetch(API_URL);
+  const data = await res.json();
+  let existing = data.find(p => p.name === name);
 
-    async function submitScore(name, score) {
-      if (!name) return;
-      const res = await fetch(API_URL);
-      const data = await res.json();
-      let existing = data.find(p => p.name === name);
-
-      if (existing) {
-        playerId = existing.id;
-        if (score > existing.score) {
-          await fetch(`${API_URL}/${existing.id}`, {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ score })
-          });
-        }
-      } else {
-        const res = await fetch(API_URL, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name, score })
-        });
-        const newPlayer = await res.json();
-        playerId = newPlayer.id;
+  if (existing) {
+    playerId = existing.id;
+    if (score > existing.score) {
+      // Update existing player's highscore
+      const updateRes = await fetch(`${API_URL}/${existing.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ score })
+      });
+      if (updateRes.ok) {
+        // Make sure to update playerId in case it changed
+        const updatedPlayer = await updateRes.json();
+        playerId = updatedPlayer.id;
       }
     }
+  } else {
+    // Create new player with name and score
+    const createRes = await fetch(API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, score })
+    });
+    if (createRes.ok) {
+      const newPlayer = await createRes.json();
+      playerId = newPlayer.id;  // <-- Important to set playerId here!
+    }
+  }
+}
+
 
     function chanceText(n) {
       const chance = Math.pow(0.5, n);
