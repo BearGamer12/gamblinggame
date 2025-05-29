@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>50/50 Risk Game with Editable Username</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      text-align: center;
+      background: #222;
+      color: #fff;
+      margin-top: 30px;
+    }
+    input[type="text"] {
+      font-size: 16px;
+      padding: 5px 8px;
+      width: 180px;
+      margin-right: 5px;
+    }
+    button {
+      padding: 10px 20px;
+      font-size: 16px;
+      margin: 5px;
+      cursor: pointer;
+    }
+    .score, .status {
+      margin: 10px;
+      font-size: 20px;
+    }
+    table {
+      margin: 20px auto;
+      border-collapse: collapse;
+      width: 300px;
+    }
+    th, td {
+      border: 1px solid #555;
+      padding: 8px;
+    }
+    th {
+      background-color: #333;
+    }
+  </style>
+</head>
+<body>
+  <h1>💣 50/50 Risk Game</h1>
+  
+  <div>
+    <label for="usernameInput">Player Name:</label>
+    <input id="usernameInput" type="text" placeholder="Enter your name" />
+    <button onclick="saveName()">Save Name</button>
+  </div>
+  
+  <div class="score">Score: <span id="score">0</span></div>
+  <div class="score">Highscore: <span id="highscore">0</span></div>
+  <div class="score">Chance of reaching score: <span id="scoreChance">100%</span></div>
+  <div class="score">Chance of reaching highscore: <span id="highscoreChance">100%</span></div>
+  
+  <button onclick="play()">Risk It!</button>
+  
+  <div class="status" id="statusMessage"></div>
+
+  <h2>🏆 Leaderboard</h2>
+  <table id="leaderboard">
+    <thead>
+      <tr><th>Name</th><th>Highscore</th></tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <script>
+    const API_URL = "https://6837bdf72c55e01d184aafb6.mockapi.io/api/v1/SCORES"; // Replace this with your MockAPI.io scores URL
+    let score = 0;
+    let highscore = 0;
+    let playerName = localStorage.getItem("playerName") || "";
+    let playerId = null;
+
+    const usernameInput = document.getElementById("usernameInput");
+    const statusMessage = document.getElementById("statusMessage");
+
+    // Initialize input with stored player name
+    usernameInput.value = playerName;
+
+    async function getLeaderboard() {
+      const res = await fetch(API_URL);
+      const data = await res.json();
+      data.sort((a, b) => b.score - a.score);
+
+      const tbody = document.querySelector("#leaderboard tbody");
+      tbody.innerHTML = "";
+      data.forEach(player => {
+        tbody.innerHTML += `<tr><td>${player.name}</td><td>${player.score}</td></tr>`;
+      });
+
+      const existing = data.find(p => p.name === playerName);
+      if (existing) {
+        playerId = existing.id;
+      } else {
+        playerId = null;
+      }
+    }
+
+    async function submitScore(name, score) {
+      if (!name) return;
+      const res = await fetch(API_URL);
+      const data = await res.json();
+      let existing = data.find(p => p.name === name);
+
+      if (existing) {
+        playerId = existing.id;
+        if (score > existing.score) {
+          await fetch(`${API_URL}/${existing.id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ score })
+          });
+        }
+      } else {
+        const res = await fetch(API_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name, score })
+        });
+        const newPlayer = await res.json();
+        playerId = newPlayer.id;
+      }
+    }
+
+    function chanceText(n) {
+      const chance = Math.pow(0.5, n);
+      return (chance * 100).toFixed(8) + "%";
+    }
+
+    function updateUI(message = "") {
+      document.getElementById("score").textContent = score;
+      document.getElementById("highscore").textContent = highscore;
+      document.getElementById("scoreChance").textContent = chanceText(score);
+      document.getElementById("highscoreChance").textContent = chanceText(highscore);
+      statusMessage.textContent = message;
+    }
+
+    async function play() {
+      if (!playerName) {
+        statusMessage.textContent = "⚠️ Please enter and save your player name first!";
+        return;
+      }
+      if (Math.random() < 0.5) {
+        score = 0;
+        updateUI("💥 You lost!");
+      } else {
+        score++;
+        if (score > highscore) {
+          highscore = score;
+          await submitScore(playerName, highscore);
+        }
+        updateUI("✅ Safe! Keep going!");
+      }
+      getLeaderboard();
+    }
+
+    async function saveName() {
+      const newName = usernameInput.value.trim();
+      if (!newName) {
+        statusMessage.textContent = "⚠️ Name cannot be empty!";
+        return;
+      }
+
+      // Check if the name is taken by another player
+      const res = await fetch(API_URL);
+      const data = await res.json();
+      const nameTaken = data.find(p => p.name === newName && p.id !== playerId);
+
+      if (nameTaken) {
+        statusMessage.textContent = "⚠️ That name is already taken!";
+        return;
+      }
+
+      // Update player name locally
+      playerName = newName;
+      localStorage.setItem("playerName", playerName);
+
+      // Update the name on backend if player exists
+      if (playerId) {
+        await fetch(`${API_URL}/${playerId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: playerName })
+        });
+      }
+
+      statusMessage.textContent = "✅ Name saved!";
+      getLeaderboard();
+    }
+
+    async function init() {
+      if (playerName) {
+        const res = await fetch(API_URL);
+        const data = await res.json();
+        const existing = data.find(p => p.name === playerName);
+        if (existing) {
+          highscore = existing.score;
+          playerId = existing.id;
+        }
+      }
+      updateUI();
+      getLeaderboard();
+    }
+
+    init();
+  </script>
+</body>
+</html>
