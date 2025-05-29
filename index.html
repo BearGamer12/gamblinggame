@@ -80,24 +80,6 @@
     // Initialize input with stored player name
     usernameInput.value = playerName;
 
-    async function getLeaderboard() {
-      const res = await fetch(API_URL);
-      const data = await res.json();
-      data.sort((a, b) => b.score - a.score);
-
-      const tbody = document.querySelector("#leaderboard tbody");
-      tbody.innerHTML = "";
-      data.forEach(player => {
-        tbody.innerHTML += `<tr><td>${player.name}</td><td>${player.score}</td></tr>`;
-      });
-
-      const existing = data.find(p => p.name === playerName);
-      if (existing) {
-        playerId = existing.id;
-      } else {
-        playerId = null;
-      }
-    }
 async function submitScore(name, score) {
   if (!name) return;
   const res = await fetch(API_URL);
@@ -200,24 +182,82 @@ async function submitScore(name, score) {
       getLeaderboard();
     }
 
-    async function init() {
-      if (playerName) {
-        const res = await fetch(API_URL);
-        const data = await res.json();
-        const existing = data.find(p => p.name === playerName);
-        if (existing) {
-          highscore = existing.score;
-          playerId = existing.id;
-        }
-      }
-      updateUI();
-      getLeaderboard();
-      setInterval(getLeaderboard, 3000); // update leaderboard every 3 seconds
+   async function syncScoresWithServer() {
+  if (!playerName) return;
 
+  const res = await fetch(API_URL);
+  const data = await res.json();
+  const existing = data.find(p => p.name === playerName);
+
+  if (existing) {
+    playerId = existing.id;
+    // If server score is higher, update client scores
+    if (existing.score > highscore) {
+      highscore = existing.score;
+      score = existing.score;
+      updateUI("🔄 Synced with server (server had higher score).");
     }
+    // If client score is higher, update server
+    else if (highscore > existing.score) {
+      await fetch(`${API_URL}/${playerId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ score: highscore }),
+      });
+      updateUI("🔄 Synced with server (client had higher score).");
+    }
+  } else {
+    // If player does not exist on server yet, create record
+    const res = await fetch(API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: playerName, score: highscore }),
+    });
+    const newPlayer = await res.json();
+    playerId = newPlayer.id;
+    updateUI("🔄 Player created on server.");
+  }
+}
 
-    init();
+async function getLeaderboard() {
+  const res = await fetch(API_URL);
+  const data = await res.json();
+  data.sort((a, b) => b.score - a.score);
+
+  const tbody = document.querySelector("#leaderboard tbody");
+  tbody.innerHTML = "";
+  data.forEach(player => {
+    tbody.innerHTML += `<tr><td>${player.name}</td><td>${player.score}</td></tr>`;
+  });
+
+  // Sync scores after leaderboard loads
+  await syncScoresWithServer();
+}
+
+async function init() {
+  playerName = localStorage.getItem("playerName") || "";
+  usernameInput.value = playerName;
+
+  if (playerName) {
+    const res = await fetch(API_URL);
+    const data = await res.json();
+    const existing = data.find(p => p.name === playerName);
+    if (existing) {
+      highscore = existing.score;
+      playerId = existing.id;
+      score = highscore; // keep current score in sync on init
+    }
+  }
+  updateUI();
+  await getLeaderboard();
+
+  setInterval(getLeaderboard, 3000); // refresh leaderboard & sync every 3s
+}
+
+init();
+
+
+  
   </script>
 </body>
 </html>
-
