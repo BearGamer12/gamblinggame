@@ -212,9 +212,12 @@ async function submitScore(name, score) {
       }
       updateUI();
       getLeaderboard();
+      setInterval(getLeaderboard, 3000); // update leaderboard every 3 seconds
+
     }
 
     init();
   </script>
 </body>
 </html>
+
