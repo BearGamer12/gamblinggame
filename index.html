@@ -117,9 +117,16 @@ async function submitScore(name, score) {
 
 
     function chanceText(n) {
-      const chance = Math.pow(0.5, n);
-      return (chance * 100).toFixed(8) + "%";
-    }
+  const chance = Math.pow(0.5, n);
+  const percent = chance * 100;
+
+  if (percent < 0.1e-8) {
+    return percent.toExponential(2) + "%";
+  } else {
+    return percent.toFixed(8) + "%";
+  }
+}
+
 
     function updateUI(message = "") {
       document.getElementById("score").textContent = score;
@@ -217,6 +224,18 @@ async function submitScore(name, score) {
     updateUI("🔄 Created player on server.");
   }
 }
+function formatChance(chance) {
+  // chance is a decimal between 0 and 1 (e.g., 0.0000005)
+  const percent = chance * 100;
+
+  if (percent < 0.01) {
+    // Use exponential notation if below 0.01%
+    return percent.toExponential(2) + '%';
+  } else {
+    // Normal percentage with 2 decimals
+    return percent.toFixed(2) + '%';
+  }
+}
 
 
 async function getLeaderboard() {
@@ -245,7 +264,7 @@ async function init() {
     if (existing) {
       highscore = existing.score;
       playerId = existing.id;
-      score = highscore; // keep current score in sync on init
+      
     }
   }
   updateUI();
@@ -261,4 +280,3 @@ init();
   </script>
 </body>
 </html>
-
